@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Completo Npoint</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
+    
+    html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f1015; color: #e1e1e6; font-size: 14px; }
+    
+    #chat-container { width: 100vw; height: 100vh; background: #16171d; display: flex; flex-direction: column; border: none; border-radius: 0; }
+    
+    #top-bar { padding: 10px 15px; background: #1a1c23; border-bottom: 1px solid #232530; display: flex; justify-content: space-between; align-items: center; }
+    .badge { font-size: 0.7em; padding: 3px 6px; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
+    .badge-user { background: #2d303e; color: #aaa; }
+    .badge-guest { background: #2b3b4e; color: #8ab4f8; }
+    .badge-vip { background: #f1c40f; color: #000; }
+    .badge-admin { background: #e74c3c; color: #fff; }
+
+    #main-content { flex: 1; display: flex; overflow: hidden; }
+    #chat-section { flex: 1; display: flex; flex-direction: column; background: #121318; }
+    #messages { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+    
+    .msg { background: #1a1c23; padding: 8px 10px; border-radius: 4px; max-width: 90%; word-break: break-word; border-left: 3px solid #2d303e; }
+    .msg.vip-msg { border-left-color: #f1c40f; background: #1f1d14; }
+    .msg.admin-msg { border-left-color: #e74c3c; background: #221516; }
+    .msg.guest-msg { border-left-color: #3b5998; }
+    .msg .author { font-size: 0.8em; font-weight: bold; margin-bottom: 2px; display: flex; gap: 6px; align-items: center; }
+    .msg.sys { background: #1c1a10; color: #f39c12; align-self: center; font-size: 0.85em; text-align: center; border: none; padding: 4px 10px; border-radius: 4px; }
+    
+    #input-box { padding: 10px 15px; background: #1a1c23; display: flex; gap: 8px; border-top: 1px solid #232530; }
+    #input-box input { flex: 1; padding: 10px 12px; border-radius: 4px; border: 1px solid #2d303e; background: #0f1015; color: #fff; outline: none; font-size: 0.9em; }
+    #input-box input:focus { border-color: #4a69bd; }
+    #input-box button { padding: 10px 20px; border: none; background: #20bf6b; color: white; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    #input-box input:disabled, #input-box button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #user-panel { width: 260px; background: #16171d; border-left: 1px solid #232530; display: flex; flex-direction: column; }
+    .panel-header { padding: 10px; font-size: 0.8em; font-weight: bold; background: #1a1c23; border-bottom: 1px solid #232530; color: #888; text-transform: uppercase; text-align: center; }
+    #user-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+    
+    .user-card { background: #1a1c23; padding: 6px 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85em; border: 1px solid #232530; }
+    .user-card.is-banned { background: #2a1515; border-color: #e74c3c; }
+    
+    .user-actions { display: flex; gap: 3px; }
+    .btn-act { border: none; padding: 3px 5px; border-radius: 3px; font-size: 0.7em; font-weight: bold; cursor: pointer; color: #fff; }
+    .btn-act:disabled { opacity: 0.3; cursor: not-allowed; }
+    .btn-vip { background: #f1c40f; color: #000; }
+    .btn-admin { background: #e74c3c; }
+    .btn-ban { background: #c0392b; }
+    .btn-unban { background: #20bf6b; }
+
+    #modal-auth { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 99; }
+    .modal-box { background: #16171d; padding: 20px; border-radius: 6px; text-align: center; width: 90%; max-width: 320px; border: 1px solid #232530; position: relative; }
+    .close-btn { position: absolute; top: 8px; right: 10px; background: none; border: none; color: #888; font-size: 1.1em; cursor: pointer; }
+    
+    .modal-box input { width: 100%; padding: 8px; margin: 5px 0; background: #0f1015; border: 1px solid #232530; color: #fff; border-radius: 4px; text-align: center; outline: none; }
+    .modal-box button.btn-primary { width: 100%; padding: 8px; background: #20bf6b; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 6px; }
+    .modal-box button.btn-secondary { width: 100%; padding: 7px; background: #3b5998; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 5px; }
+    
+    .auth-tabs { display: flex; margin-bottom: 12px; border-bottom: 1px solid #232530; }
+    .tab-btn { flex: 1; padding: 6px; background: none; border: none; color: #888; font-weight: bold; cursor: pointer; }
+    .tab-btn.active { color: #20bf6b; border-bottom: 2px solid #20bf6b; }
+    
+    #banned-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; color: #e74c3c; flex-direction: column; justify-content: center; align-items: center; z-index: 100; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <div id="banned-screen">
+    <h2>🚫 ACCESO BLOQUEADO</h2>
+    <p style="margin-top: 8px; color: #aaa;">Has sido baneado por un Administrador.</p>
+  </div>
+
+  <div id="modal-auth">
+    <div class="modal-box">
+      <button class="close-btn" onclick="modoLectura()" title="Solo Leer Chat">✕</button>
+      
+      <div class="auth-tabs">
+        <button class="tab-btn active" id="tab-login" onclick="cambiarTab('login')">Ingresar</button>
+        <button class="tab-btn" id="tab-register" onclick="cambiarTab('register')">Registrarse</button>
+      </div>
+
+      <div id="form-account">
+        <input type="text" id="authUser" placeholder="Usuario" maxlength="15">
+        <input type="password" id="authPass" placeholder="Contraseña">
+        <button class="btn-primary" id="btn-auth-action" onclick="procesarCuenta()">Entrar</button>
+      </div>
+
+      <hr style="border: 0; border-top: 1px solid #232530; margin: 12px 0;">
+
+      <div>
+        <p style="font-size: 0.8em; color: #888; margin-bottom: 4px;">Modo Invitado (Sin clave)</p>
+        <input type="text" id="guestUser" placeholder="Apodo temporal..." maxlength="15">
+        <button class="btn-secondary" onclick="entrarInvitado()">Entrar como Invitado</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="chat-container">
+    <div id="top-bar">
+      <span style="font-weight: bold; color: #888;">CHAT COMPLETO</span>
+      <div>
+        <span id="user-badge" class="badge badge-guest">Espectador</span>
+        <button id="btn-logout-header" style="display:none; margin-left: 8px; padding: 3px 6px; background: #e74c3c; border: none; color: white; border-radius: 3px; cursor: pointer; font-size: 0.75em;" onclick="cerrarSesion()">Salir</button>
+        <button id="btn-login-header" style="display:inline-block; margin-left: 8px; padding: 3px 6px; background: #20bf6b; border: none; color: white; border-radius: 3px; cursor: pointer; font-size: 0.75em;" onclick="abrirModal()">Ingresar</button>
+      </div>
+    </div>
+
+    <div id="main-content">
+      <div id="chat-section">
+        <div id="messages"></div>
+        <div id="input-box">
+          <input type="text" id="msgInput" placeholder="Entrá para chatear..." disabled onkeypress="if(event.key==='Enter') enviarMensaje()">
+          <button id="sendBtn" onclick="enviarMensaje()" disabled>Enviar</button>
+        </div>
+      </div>
+
+      <div id="user-panel">
+        <div class="panel-header">Usuarios</div>
+        <div id="user-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const URL_NPOINT = "https://api.npoint.io/76be61f31b76ba232afa";
+
+    let miUsuario = "";
+    let esInvitado = true;
+    let miRango = "guest";
+    let modoTab = "login";
+    let cacheHash = "";
+
+    let reglasTexto = "1. Respetar a los demás usuarios.\n2. No hacer spam ni flood.";
+    let beneficiosTexto = "★ VIP: Color e insignia propia.\n★ ADMIN: Moderación general del chat.";
+
+    // Verificar si ya hay usuario guardado al cargar
+    const usuarioGuardado = localStorage.getItem("chat_registered_user");
+    if (usuarioGuardado) {
+      miUsuario = usuarioGuardado;
+      esInvitado = false;
+      document.getElementById("modal-auth").style.display = "none";
+      habilitarChat(true);
+      iniciarCicloSincronizacion();
+    }
+
+    function cambiarTab(tab) {
+      modoTab = tab;
+      document.getElementById("tab-login").className = `tab-btn ${tab === 'login' ? 'active' : ''}`;
+      document.getElementById("tab-register").className = `tab-btn ${tab === 'register' ? 'active' : ''}`;
+      document.getElementById("btn-auth-action").textContent = tab === 'login' ? 'Entrar' : 'Crear Cuenta';
+    }
+
+    async function obtenerDatosRemotos() {
+      try {
+        let res = await fetch(URL_NPOINT + "?t=" + Date.now());
+        return await res.json();
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function guardarDatosRemotos(datos) {
+      try {
+        await fetch(URL_NPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(datos)
+        });
+      } catch (e) {
+        console.error("Error al guardar en Npoint", e);
+      }
+    }
+
+    async function procesarCuenta() {
+      const u = document.getElementById("authUser").value.trim();
+      const p = document.getElementById("authPass").value.trim();
+      if (!u || !p) return alert("Completá todos los campos.");
+
+      let datos = await obtenerDatosRemotos() || { mensajes: [], usuarios: {}, config: {} };
+      if (!datos.usuarios) datos.usuarios = {};
+
+      if (modoTab === "register") {
+        if (datos.usuarios[u] && datos.usuarios[u].password) return alert("Ese usuario ya existe.");
+        datos.usuarios[u] = { password: p, rango: "user", esInvitado: false, banned: false, online: true };
+        await guardarDatosRemotos(datos);
+        iniciarSesionExitosa(u, false);
+      } else {
+        if (!datos.usuarios[u] || !datos.usuarios[u].password) return alert("Usuario no registrado.");
+        if (datos.usuarios[u].password !== p) return alert("Contraseña incorrecta.");
+        datos.usuarios[u].online = true;
+        datos.usuarios[u].banned = false;
+        await guardarDatosRemotos(datos);
+        iniciarSesionExitosa(u, false);
+      }
+    }
+
+    async function entrarInvitado() {
+      const g = document.getElementById("guestUser").value.trim();
+      if (!g) return alert("Ingresá un apodo.");
+
+      let datos = await obtenerDatosRemotos() || { mensajes: [], usuarios: {}, config: {} };
+      if (!datos.usuarios) datos.usuarios = {};
+
+      if (datos.usuarios[g] && !datos.usuarios[g].esInvitado) return alert("Ese usuario pertenece a una cuenta registrada.");
+
+      datos.usuarios[g] = { rango: "guest", esInvitado: true, banned: false, online: true };
+      await guardarDatosRemotos(datos);
+      iniciarSesionExitosa(g, true);
+    }
+
+    function iniciarSesionExitosa(usuario, esInv) {
+      miUsuario = usuario;
+      esInvitado = esInv;
+
+      if (!esInvitado) {
+        localStorage.setItem("chat_registered_user", miUsuario);
+      } else {
+        localStorage.removeItem("chat_registered_user");
+      }
+
+      document.getElementById("modal-auth").style.display = "none";
+      habilitarChat(true);
+      iniciarCicloSincronizacion();
+    }
+
+    function modoLectura() {
+      document.getElementById("modal-auth").style.display = "none";
+      habilitarChat(false);
+      miUsuario = "Espectador_" + Math.floor(Math.random() * 1000);
+      iniciarCicloSincronizacion();
+      mostrarSistema("Modo lectura activo.");
+    }
+
+    function abrirModal() {
+      document.getElementById("modal-auth").style.display = "flex";
+    }
+
+    function cerrarSesion() {
+      localStorage.removeItem("chat_registered_user");
+      location.reload();
+    }
+
+    function habilitarChat(activo) {
+      const input = document.getElementById("msgInput");
+      const sendBtn = document.getElementById("sendBtn");
+      input.disabled = !activo;
+      sendBtn.disabled = !activo;
+
+      const btnLogin = document.getElementById("btn-login-header");
+      const btnLogout = document.getElementById("btn-logout-header");
+
+      if (activo) {
+        input.placeholder = esInvitado ? "Mensaje o /reglas..." : "Mensaje o comando (/help)...";
+        btnLogin.style.display = "none";
+        btnLogout.style.display = "inline-block";
+      } else {
+        btnLogin.style.display = "inline-block";
+        btnLogout.style.display = "none";
+      }
+    }
+
+    function iniciarCicloSincronizacion() {
+      sincronizarTodo();
+      setInterval(sincronizarTodo, 3000); // Sincroniza cada 3 segundos
+    }
+
+    async function sincronizarTodo() {
+      let datos = await obtenerDatosRemotos();
+      if (!datos) return;
+
+      // 1. Verificar si el usuario actual fue baneado
+      if (miUsuario && datos.usuarios && datos.usuarios[miUsuario]) {
+        let infoUser = datos.usuarios[miUsuario];
+        if (infoUser.banned) {
+          document.getElementById("banned-screen").style.display = "flex";
+          return;
+        }
+        miRango = esInvitado ? "guest" : (infoUser.rango || "user");
+        actualizarBadgeRango();
+      }
+
+      // 2. Configuración general
+      if (datos.config) {
+        if (datos.config.reglas) reglasTexto = datos.config.reglas;
+        if (datos.config.beneficios) beneficiosTexto = datos.config.beneficios;
+      }
+
+      // 3. Renderizar mensajes si hubo cambios
+      let nuevoHash = JSON.stringify(datos.mensajes) + JSON.stringify(datos.usuarios);
+      if (nuevoHash !== cacheHash) {
+        cacheHash = nuevoHash;
+
+        // Actualizar mensajes
+        const box = document.getElementById("messages");
+        box.innerHTML = "";
+        if (datos.mensajes) {
+          datos.mensajes.slice(-50).forEach(m => {
+            renderizarMensajePantalla(m);
+          });
+        }
+
+        // Actualizar lista de usuarios a la derecha
+        actualizarPanelUsuarios(datos.usuarios);
+      }
+    }
+
+    function actualizarBadgeRango() {
+      const badge = document.getElementById("user-badge");
+      let cssBadge = esInvitado ? "badge-guest" : `badge-${miRango}`;
+      badge.className = `badge ${cssBadge}`;
+      badge.textContent = `${miUsuario} [${esInvitado ? 'GUEST' : miRango.toUpperCase()}]`;
+    }
+
+    async function enviarMensaje() {
+      const input = document.getElementById("msgInput");
+      const texto = input.value.trim();
+      if (!texto) return;
+
+      if (texto.startsWith("/")) {
+        const comandoUsado = texto.split(" ")[0].toLowerCase();
+        if ((esInvitado || miRango === "guest") && comandoUsado !== "/reglas") {
+          mostrarSistema("❌ Los invitados solo pueden usar /reglas.");
+          input.value = "";
+          return;
+        }
+        ejecutarComando(texto);
+        input.value = "";
+        return;
+      }
+
+      let datos = await obtenerDatosRemotos() || { mensajes: [], usuarios: {}, config: {} };
+      if (!datos.mensajes) datos.mensajes = [];
+
+      datos.mensajes.push({
+        usuario: miUsuario,
+        mensaje: texto,
+        rango: miRango,
+        esInvitado: esInvitado,
+        timestamp: Date.now()
+      });
+
+      await guardarDatosRemotos(datos);
+      input.value = "";
+      sincronizarTodo();
+    }
+
+    async function ejecutarComando(cmd) {
+      const partes = cmd.split(" ");
+      const comando = partes[0].toLowerCase();
+      const parametro = partes.slice(1).join(" ").trim();
+      let datos = await obtenerDatosRemotos() || { mensajes: [], usuarios: {}, config: {} };
+
+      switch (comando) {
+        case "/help":
+          mostrarSistema("Comandos: /vips, /admins, /bans, /reglas, /beneficios, /clear");
+          if (miRango === "admin") mostrarSistema("Admin: /setreglas [texto], /setbeneficios [texto]");
+          break;
+        case "/clear":
+          document.getElementById("messages").innerHTML = "";
+          mostrarSistema("Chat limpiado localmente.");
+          break;
+        case "/reglas":
+          mostrarSistema(`📋 REGLAS:\n${reglasTexto}`);
+          break;
+        case "/beneficios":
+          mostrarSistema(`⭐ BENEFICIOS:\n${beneficiosTexto}`);
+          break;
+        case "/vips":
+          listarPorFiltro(datos.usuarios, u => u.rango === "vip", "VIPs");
+          break;
+        case "/admins":
+          listarPorFiltro(datos.usuarios, u => u.rango === "admin", "Admins");
+          break;
+        case "/bans":
+          listarPorFiltro(datos.usuarios, u => u.banned === true, "Baneados");
+          break;
+        case "/setreglas":
+          if (miRango !== "admin") return mostrarSistema("❌ Requieres Admin.");
+          if (!parametro) return mostrarSistema("Uso: /setreglas [texto]");
+          if (!datos.config) datos.config = {};
+          datos.config.reglas = parametro;
+          await guardarDatosRemotos(datos);
+          mostrarSistema("✅ Reglas actualizadas globalmente.");
+          break;
+        case "/setbeneficios":
+          if (miRango !== "admin") return mostrarSistema("❌ Requieres Admin.");
+          if (!parametro) return mostrarSistema("Uso: /setbeneficios [texto]");
+          if (!datos.config) datos.config = {};
+          datos.config.beneficios = parametro;
+          await guardarDatosRemotos(datos);
+          mostrarSistema("✅ Beneficios actualizados globalmente.");
+          break;
+        default:
+          mostrarSistema(`Comando '${comando}' no reconocido.`);
+          break;
+      }
+    }
+
+    function listarPorFiltro(usuariosObj, filtro, titulo) {
+      if (!usuariosObj) return mostrarSistema(`Sin registros para: ${titulo}`);
+      const lista = Object.keys(usuariosObj).filter(key => filtro(usuariosObj[key]));
+      if (lista.length === 0) {
+        mostrarSistema(`Sin registros para: ${titulo}`);
+      } else {
+        mostrarSistema(`--- ${titulo} (${lista.length}) ---\n• ` + lista.join("\n• "));
+      }
+    }
+
+    function renderizarMensajePantalla(data) {
+      const box = document.getElementById("messages");
+      const div = document.createElement("div");
+      
+      let cssRango = data.esInvitado ? "guest-msg" : `${data.rango || 'user'}-msg`;
+      div.className = `msg ${cssRango}`;
+
+      const author = document.createElement("div");
+      author.className = "author";
+      
+      let badgeClass = data.esInvitado ? "badge-guest" : (data.rango === "admin" ? "badge-admin" : (data.rango === "vip" ? "badge-vip" : "badge-user"));
+      let badgeTexto = data.esInvitado ? "guest" : (data.rango || "user");
+
+      author.innerHTML = `<span>${data.usuario}</span> <span class="badge ${badgeClass}">${badgeTexto}</span>`;
+
+      const content = document.createElement("div");
+      content.textContent = data.mensaje;
+
+      div.appendChild(author);
+      div.appendChild(content);
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function mostrarSistema(texto) {
+      const box = document.getElementById("messages");
+      const div = document.createElement("div");
+      div.className = "msg sys";
+      div.innerText = texto;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function actualizarPanelUsuarios(usuarios) {
+      const userListDiv = document.getElementById("user-list");
+      userListDiv.innerHTML = "";
+      if (!usuarios) return;
+
+      Object.keys(usuarios).forEach(userKey => {
+        const u = usuarios[userKey];
+        const esBaneado = u.banned === true;
+        const usuarioEsInvitado = u.esInvitado === true;
+
+        const card = document.createElement("div");
+        card.className = `user-card ${esBaneado ? 'is-banned' : ''}`;
+
+        let colorRango = usuarioEsInvitado ? "#3b5998" : (u.rango === "admin" ? "#e74c3c" : (u.rango === "vip" ? "#f1c40f" : "#aaa"));
+        if (esBaneado) colorRango = "#e74c3c";
+
+        let htmlBotones = "";
+        if (miRango === "admin" && userKey !== miUsuario) {
+          const esVIP = u.rango === "vip";
+          const esAdmin = u.rango === "admin";
+          const disabledAttr = usuarioEsInvitado ? "disabled" : "";
+
+          htmlBotones = `
+            <div class="user-actions">
+              <button class="btn-act btn-vip" ${disabledAttr} onclick="toggleRango('${userKey}', 'vip', ${esVIP})">VIP</button>
+              <button class="btn-act btn-admin" ${disabledAttr} onclick="toggleRango('${userKey}', 'admin', ${esAdmin})">ADM</button>
+              <button class="btn-act ${esBaneado ? 'btn-unban' : 'btn-ban'}" onclick="toggleBan('${userKey}', ${esBaneado})">${esBaneado ? 'OK' : 'BAN'}</button>
+            </div>
+          `;
+        }
+
+        card.innerHTML = `<div><strong style="color: ${colorRango}">${userKey}</strong></div>${htmlBotones}`;
+        userListDiv.appendChild(card);
+      });
+    }
+
+    async function toggleRango(usuario, rangoTarget, tieneActualmente) {
+      let datos = await obtenerDatosRemotos();
+      if (!datos || !datos.usuarios || !datos.usuarios[usuario]) return;
+
+      const nuevoRango = tieneActualmente ? 'user' : rangoTarget;
+      datos.usuarios[usuario].rango = nuevoRango;
+      await guardarDatosRemotos(datos);
+      mostrarSistema(`[ADMIN] Rango de ${usuario} -> ${nuevoRango.toUpperCase()}`);
+      sincronizarTodo();
+    }
+
+    async function toggleBan(usuario, estaBaneado) {
+      let datos = await obtenerDatosRemotos();
+      if (!datos || !datos.usuarios || !datos.usuarios[usuario]) return;
+
+      const nuevoEstado = !estaBaneado;
+      datos.usuarios[usuario].banned = nuevoEstado;
+      datos.usuarios[usuario].online = false;
+      await guardarDatosRemotos(datos);
+      mostrarSistema(`[ADMIN] ${usuario} ${nuevoEstado ? 'BANEADO' : 'DESBANEADO'}.`);
+      sincronizarTodo();
+    }
+  </script>
+</body>
+</html>
